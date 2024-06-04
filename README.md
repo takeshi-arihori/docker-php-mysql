@@ -1,102 +1,96 @@
-# PHP アプリケーションと MySQL、phpMyAdmin の Docker Compose 設定
+# PHP + PHP-FPM × Nginx × MySQL 開発環境
 
-このリポジトリには、PHP アプリケーションと MySQL データベース、およびデータベース管理のための phpMyAdmin を設定する Docker Compose の構成が含まれています。
+このリポジトリは、Docker Compose を使用して PHP + PHP-FPM × Nginx × MySQL の開発環境を構築するためのモデルです。複数のプロジェクトで再利用可能な設定を提供します。
 
-## 前提条件
+## 開発環境
 
-以下のソフトウェアがマシンにインストールされていることを確認してください：
+- **Web サーバ**: Nginx 1.25.0
+- **データベース**: MySQL 8.0
+- **言語**: PHP 8.1
 
-- Docker
+## 参考
+
+- [参考記事](https://qiita.com/shikuno_dev/items/f236c8280bb745dd6fb4)
 
 ## プロジェクト構成
 
 ```
 .
-├── app
-│ ├── src
-│ │ └── index.php
-│ └── Dockerfile
-├── mysql
-│ └── initdb.d
-│ └── init.sql
-├── compose.yml
-└── README.md
+├── docker/
+│ ├── mysql/
+│ │ └── my.cnf
+│ ├── nginx/
+│ │ └── default.conf
+│ └── php/
+│ ├── Dockerfile
+│ └── php.ini
+├── src/
+│ ├── Interfaces/
+│ │ └── Engine.php
+│ ├── Engines/
+│ │ ├── GasolineEngine.php
+│ │ └── ElectricEngine.php
+│ └── Cars/
+│ ├── Car.php
+│ ├── GasCar.php
+│ └── ElectricCar.php
+├── docker-compose.yml
+└── .env
 ```
 
-## サービス
+## セットアップ手順
 
-Docker Compose の構成は以下のサービスをセットアップします：
+### 1. リポジトリをクローン
 
-1. **php-app**: PHP アプリケーションコンテナ。
-2. **php-db**: MySQL データベースコンテナ。
-3. **phpmyadmin**: データベース管理用の phpMyAdmin コンテナ。
-
-## PHP と MySQL の設定
-
-### app/Dockerfile
-
-この Dockerfile は PHP 環境をセットアップし、MySQL 接続のための必要なパッケージをインストールします。
-
-```Dockerfile
-# PHP 8.2 と Apache をベースにした公式 Docker イメージを使用。
-FROM php:8.2-apache
-
-# パッケージリストを更新し、MySQL 用の PDO 拡張モジュールをインストール。
-RUN apt update \
-    && docker-php-ext-install pdo_mysql
-
-# src ディレクトリの内容をコンテナ内の/var/www/html/にコピー。
-COPY src/ /var/www/html/
+```bash
+git clone https://github.com/yourusername/yourrepository.git
+cd yourrepository
 ```
 
-### app/src/index.php
+### 2. 環境変数を設定
 
-この PHP スクリプトは MySQL データベースに接続し、ユーザーレコードを取得します。
+.env ファイルを作成し、以下の内容を追加します。
 
 ```
-<?php
-
-// データベース接続
-// ホストはコンテナ名を記載する
-$dsn = 'mysql:dbname=test_db;host=run-php-db;';
-$user = 'test';
-$password = 'test';
-
-try {
-    $pdo = new PDO($dsn, $user, $password);
-    $sth = $pdo->query("SELECT * FROM users WHERE id = 1");
-    $user = $sth->fetch(PDO::FETCH_ASSOC);
-    var_dump($user);
-} catch (PDOException $e) {
-    print('Error:' . $e->getMessage());
-    exit;
-}
+MYSQL_ROOT_PASSWORD=password
+MYSQL_DATABASE=php-docker-db
+MYSQL_USER=user
+MYSQL_PASSWORD=password
+PROJECT_NAME=my_project
 
 ```
 
-### mysql/initdb.d/init.sql
-
-この SQL スクリプトは、MySQL データベースを初期化し、users テーブルを作成し、サンプルレコードを挿入します。
+### 3. Docker コンテナをビルドして起動
 
 ```
-CREATE TABLE test_db.users (
-    id          INT             NOT NULL,
-    first_name  VARCHAR(20)     NOT NULL,
-    age         INT,
-    PRIMARY KEY (id)
-);
-
-INSERT INTO `users` VALUES (1, 'Takeshi Arihori', 37);
+docker-compose up --build
 ```
 
-### 使用方法
+### 4. phpMyAdmin にアクセス
 
-1. コンテナのビルドと起動
-   コンテナをビルドし、起動するには、以下のコマンドを実行します：
+ブラウザで http://localhost:8080 にアクセスし、以下の情報でログインします。
 
 ```
-docker compose up -d
+サーバ: mysql
+ユーザ名: root
+パスワード: .envファイルで設定したMYSQL_ROOT_PASSWORDの値（例: password）
 ```
 
-2. ブラウザでアクセス
-   ブラウザで `http://localhost:8080` にアクセスし、PHP アプリケーションが MySQL データベースからユーザーレコードを取得していることを確認します。
+## Docker 内での DB 操作
+
+### MySQL コンテナに入る
+
+```
+docker-compose exec mysql /bin/bash
+```
+
+### MySQL にログイン
+
+```
+mysql -u root -p
+```
+
+### 注意事項
+
+- 各プロジェクトで使用する際は、.env ファイルの内容をプロジェクトに合わせて変更してください。
+- Docker Compose ファイルで定義されたボリューム名やネットワーク名もプロジェクトごとにユニークにしてください。
