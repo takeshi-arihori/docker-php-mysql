@@ -1,44 +1,61 @@
+version: "3.8"
+
 services:
-  php-app:
-    container_name: run-php-app
-    build: ./app
+  nginx:
+    image: nginx:1.25.0
     ports:
-      - "18080:80"
+      - 8000:80
     volumes:
-      - ./app/src:/var/www/html
-    networks:
-      - php-mysql-networks
+      - ./src:/var/www/html
+      - ./docker/nginx:/etc/nginx/conf.d
     depends_on:
-      - php-db
-  php-db:
-    image: mysql:8.0
-    container_name: run-php-db
-    ports:
-      - "3307:3306"
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_USER: test
-      MYSQL_PASSWORD: test
-      MYSQL_DATABASE: test_db
-    volumes:
-      - ./mysql/initdb.d:/docker-entrypoint-initdb.d
-      - mysql-data:/var/lib/mysql
+      - app
     networks:
-      - php-mysql-networks
+      - project_network
+
+  app:
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    volumes:
+      - ./src:/var/www/html
+    env_file:
+      - .env
+    networks:
+      - project_network
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - ${PROJECT_NAME}_mysqldata:/var/lib/mysql
+      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf
+    ports:
+      - 3306:3306
+    networks:
+      - project_network
+
   phpmyadmin:
     image: phpmyadmin
     restart: always
     ports:
       - 8080:80
     environment:
-      - PMA_ARBITRARY=1
-    container_name: phpmyadmin
-    networks:
-      - php-mysql-networks
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_ARBITRARY: 1
     depends_on:
-      - php-db
+      - mysql
+    networks:
+      - project_network
+
 volumes:
-  mysql-data:
+  ${PROJECT_NAME}_mysqldata:
 
 networks:
-  php-mysql-networks:
+  project_network:
+    driver: bridge
